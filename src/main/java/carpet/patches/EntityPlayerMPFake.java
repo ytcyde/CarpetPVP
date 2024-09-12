@@ -2,7 +2,9 @@ package carpet.patches;
 
 import carpet.CarpetSettings;
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.ParseResults;
 import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.DisconnectionDetails;
@@ -243,6 +245,12 @@ public class EntityPlayerMPFake extends ServerPlayer
             if (damageSource.getDirectEntity() instanceof LivingEntity le && le.canDisableShield()) {
                 this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
                 this.disableShield();
+
+                String ign = this.getGameProfile().getName();
+                CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
+                ParseResults<CommandSourceStack> parseResults = server.getCommands().getDispatcher()
+                        .parse(String.format("function practicebot:shielddisable", ign), commandSource);
+                server.getCommands().performCommand(parseResults, "");
             } else {
                 // shield block sound probably
                 this.playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 0.8F + this.level().random.nextFloat() * 0.4F);

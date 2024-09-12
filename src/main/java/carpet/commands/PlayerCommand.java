@@ -55,7 +55,6 @@ public class PlayerCommand
                 .then(argument("player", StringArgumentType.word())
                         .suggests((c, b) -> suggest(getPlayerSuggestions(c.getSource()), b))
                         .then(literal("stop").executes(manipulation(EntityPlayerActionPack::stopAll)))
-                        .then(literal("stopm").executes(manipulation(EntityPlayerActionPack::stopMovement)))
                         .then(makeActionCommand("use", ActionType.USE))
                         .then(makeActionCommand("jump", ActionType.JUMP))
                         .then(makeActionCommand("attack", ActionType.ATTACK))
