@@ -175,6 +175,7 @@ public class EntityPlayerMPFake extends ServerPlayer
     @Override
     public void tick()
     {
+//        System.out.println(this.invulnerableTime);
         if (this.getServer().getTickCount() % 10 == 0)
         {
             this.connection.resetPosition();
@@ -261,13 +262,16 @@ public class EntityPlayerMPFake extends ServerPlayer
 
     @Override
     public boolean hurt(DamageSource damageSource, float f) {
+
         if (f > 0.0f && this.isDamageSourceBlocked(damageSource)) {
             this.hurtCurrentlyUsedShield(f);
             // equivalent of Player::blockUsingShield without wonky KB
             if (damageSource.getDirectEntity() instanceof LivingEntity le && le.canDisableShield()) {
                 this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
                 this.disableShield();
-                this.invulnerableTime = 20;
+                if(!CarpetSettings.shieldStunning) {
+                    this.invulnerableTime = 20;
+                }
                 String ign = this.getGameProfile().getName();
                 CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
                 ParseResults<CommandSourceStack> parseResults = server.getCommands().getDispatcher()

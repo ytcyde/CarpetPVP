@@ -1039,5 +1039,5 @@ public class CarpetSettings
             desc = "Enables shield-stunning, where the entity can be damaged immediately after the shield is disabled.",
             category = {SURVIVAL, FEATURE}
     )
-    public static boolean ShieldStunning = false;
+    public static boolean shieldStunning = false;
 }
