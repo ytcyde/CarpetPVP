@@ -11,10 +11,7 @@ import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
-import net.minecraft.network.protocol.game.ClientboundRotateHeadPacket;
-import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
-import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
@@ -41,15 +38,22 @@ import net.minecraft.world.level.portal.DimensionTransition;
 import net.minecraft.world.phys.Vec3;
 import carpet.fakes.ServerPlayerInterface;
 import carpet.utils.Messenger;
+import carpet.helpers.EntityPlayerActionPack;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("EntityConstructor")
 public class EntityPlayerMPFake extends ServerPlayer
 {
+    private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     public Runnable fixStartingPosition = () -> {};
     public boolean isAShadow;
+    public Vec3 spawnPos;
+    public double spawnYaw;
 
     // Returns true if it was successful, false if couldn't spawn due to the player not existing in Mojang servers
     public static boolean createFake(String username, MinecraftServer server, Vec3 pos, double yaw, double pitch, ResourceKey<Level> dimensionId, GameType gamemode, boolean flying)
@@ -88,6 +92,8 @@ public class EntityPlayerMPFake extends ServerPlayer
             instance.unsetRemoved();
             instance.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.6F);
             instance.gameMode.changeGameModeForPlayer(gamemode);
+            instance.spawnPos = pos;
+            instance.spawnYaw = yaw;
             server.getPlayerList().broadcastAll(new ClientboundRotateHeadPacket(instance, (byte) (instance.yHeadRot * 256 / 360)), dimensionId);//instance.dimension);
             server.getPlayerList().broadcastAll(new ClientboundTeleportEntityPacket(instance), dimensionId);//instance.dimension);
             //instance.world.getChunkManager(). updatePosition(instance);
@@ -156,11 +162,14 @@ public class EntityPlayerMPFake extends ServerPlayer
 
         if (reason.getContents() instanceof TranslatableContents text && text.getKey().equals("multiplayer.disconnect.duplicate_login")) {
             this.connection.onDisconnect(new DisconnectionDetails(reason));
-        } else {
-            this.server.tell(new TickTask(this.server.getTickCount(), () -> {
-                this.connection.onDisconnect(new DisconnectionDetails(reason));
-            }));
         }
+    }
+
+    public void fakePlayerDisconnect(Component reason)
+    {
+        this.server.tell(new TickTask(this.server.getTickCount(), () -> {
+            this.connection.onDisconnect(new DisconnectionDetails(reason));
+        }));
     }
 
     @Override
@@ -181,8 +190,6 @@ public class EntityPlayerMPFake extends ServerPlayer
             // happens with that paper port thingy - not sure what that would fix, but hey
             // the game not gonna crash violently.
         }
-
-
     }
 
     private void shakeOff()
@@ -195,13 +202,28 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public void die(DamageSource cause)
-    {
+    public void die(DamageSource cause) {
         shakeOff();
         super.die(cause);
-        setHealth(20);
-        this.foodData = new FoodData();
         kill(this.getCombatTracker().getDeathMessage());
+        this.executor.schedule(this::respawn, 1L, TimeUnit.MILLISECONDS);
+        this.setHealth(20);
+        this.foodData = new FoodData();
+        this.teleportTo(spawnPos.x, spawnPos.y, spawnPos.z);
+        this.executor.schedule(() -> this.setDeltaMovement(0, 0, 0), 1L, TimeUnit.MILLISECONDS);
+    }
+
+//    public void respawn()
+//    {
+//        this.setHealth(20);
+//        this.foodData = new FoodData();
+//        this.teleportTo(spawnPos.x, spawnPos.y, spawnPos.z);
+//        this.connection.send(new ClientboundRespawnPacket(this.createCommonSpawnInfo(serverLevel()), (byte)3));
+//    }
+
+    public void stop()
+    {
+
     }
 
     @Override
@@ -245,7 +267,7 @@ public class EntityPlayerMPFake extends ServerPlayer
             if (damageSource.getDirectEntity() instanceof LivingEntity le && le.canDisableShield()) {
                 this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
                 this.disableShield();
-
+                this.invulnerableTime = 20;
                 String ign = this.getGameProfile().getName();
                 CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
                 ParseResults<CommandSourceStack> parseResults = server.getCommands().getDispatcher()
