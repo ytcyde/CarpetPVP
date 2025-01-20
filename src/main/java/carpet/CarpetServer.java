@@ -126,6 +126,7 @@ public class CarpetServer // static for now - easier to handle all around the co
         ScriptCommand.register(dispatcher, commandBuildContext);
         MobAICommand.register(dispatcher, commandBuildContext);
         PlayerMacroCommand.register(dispatcher, commandBuildContext);
+        Tick2Command.register(dispatcher);
         // registering command of extensions that has registered before either server is created
         // for all other, they will have them registered when they add themselves
         extensions.forEach(e -> {
