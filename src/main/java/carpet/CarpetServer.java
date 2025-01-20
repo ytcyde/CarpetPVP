@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import carpet.commands.*;
-import carpet.helpers.PlayerMacro;
+//import carpet.helpers.PlayerMacro;
 import carpet.script.ScriptCommand;
 import carpet.network.ServerNetworkHandler;
 import carpet.helpers.HopperCounter;
@@ -68,7 +68,7 @@ public class CarpetServer // static for now - easier to handle all around the co
         //FabricAPIHooks.initialize();
         CarpetScriptServer.parseFunctionClasses();
         CarpetSettings.LOG.info("CARPET PVP LOADED");
-        PlayerMacro.Init();
+        //PlayerMacro.Init();
     }
 
     public static void onServerLoaded(MinecraftServer server)
