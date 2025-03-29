@@ -73,6 +73,11 @@ public class EntityPlayerActionPack
 
     public EntityPlayerActionPack start(ActionType type, Action action)
     {
+        if(action.isContinuous){
+            Action curent = actions.get(type);
+            if(curent != null) return this;
+        }
+
         Action previous = actions.remove(type);
         if (previous != null) type.stop(player, previous);
         if (action != null)
