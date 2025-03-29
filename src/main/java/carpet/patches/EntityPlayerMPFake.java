@@ -2,18 +2,15 @@ package carpet.patches;
 
 import carpet.CarpetSettings;
 import com.mojang.authlib.GameProfile;
-import com.mojang.brigadier.ParseResults;
-import net.minecraft.advancements.CriteriaTriggers;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundRotateHeadPacket;
-import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -23,12 +20,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.GameProfileCache;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.stats.Stats;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
@@ -37,17 +31,21 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.SkullBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.portal.DimensionTransition;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 import carpet.fakes.ServerPlayerInterface;
 import carpet.utils.Messenger;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("EntityConstructor")
 public class EntityPlayerMPFake extends ServerPlayer
 {
+    private static final Set<String> spawning = new HashSet<>();
+
     public Runnable fixStartingPosition = () -> {};
     public boolean isAShadow;
 
@@ -74,7 +72,21 @@ public class EntityPlayerMPFake extends ServerPlayer
             }
         }
         GameProfile finalGP = gameprofile;
-        fetchGameProfile(gameprofile.getName()).thenAcceptAsync(p -> {
+
+        // We need to mark this player as spawning so that we do not
+        // try to spawn another player with the name while the profile
+        // is being fetched - preventing multiple players spawning
+        String name = gameprofile.getName();
+        spawning.add(name);
+
+        fetchGameProfile(name).whenCompleteAsync((p, t) -> {
+            // Always remove the name, even if exception occurs
+            spawning.remove(name);
+            if (t != null)
+            {
+                return;
+            }
+
             GameProfile current = finalGP;
             if (p.isPresent())
             {
@@ -83,13 +95,13 @@ public class EntityPlayerMPFake extends ServerPlayer
             EntityPlayerMPFake instance = new EntityPlayerMPFake(server, worldIn, current, ClientInformation.createDefault(), false);
             instance.fixStartingPosition = () -> instance.moveTo(pos.x, pos.y, pos.z, (float) yaw, (float) pitch);
             server.getPlayerList().placeNewPlayer(new FakeClientConnection(PacketFlow.SERVERBOUND), instance, new CommonListenerCookie(current, 0, instance.clientInformation(), false));
-            instance.teleportTo(worldIn, pos.x, pos.y, pos.z, (float) yaw, (float) pitch);
+            instance.teleportTo(worldIn, pos.x, pos.y, pos.z, Set.of(), (float) yaw, (float) pitch, true);
             instance.setHealth(20.0F);
             instance.unsetRemoved();
             instance.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.6F);
             instance.gameMode.changeGameModeForPlayer(gamemode);
             server.getPlayerList().broadcastAll(new ClientboundRotateHeadPacket(instance, (byte) (instance.yHeadRot * 256 / 360)), dimensionId);//instance.dimension);
-            server.getPlayerList().broadcastAll(new ClientboundTeleportEntityPacket(instance), dimensionId);//instance.dimension);
+            server.getPlayerList().broadcastAll(ClientboundEntityPositionSyncPacket.of(instance), dimensionId);//instance.dimension);
             //instance.world.getChunkManager(). updatePosition(instance);
             instance.entityData.set(DATA_PLAYER_MODE_CUSTOMISATION, (byte) 0x7f); // show all model layers (incl. capes)
             instance.getAbilities().flying = flying;
@@ -132,6 +144,11 @@ public class EntityPlayerMPFake extends ServerPlayer
         return new EntityPlayerMPFake(server, level, profile, cli, false);
     }
 
+    public static boolean isSpawningPlayer(String username)
+    {
+        return spawning.contains(username);
+    }
+
     private EntityPlayerMPFake(MinecraftServer server, ServerLevel worldIn, GameProfile profile, ClientInformation cli, boolean shadow)
     {
         super(server, worldIn, profile, cli);
@@ -145,7 +162,7 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public void kill()
+    public void kill(ServerLevel level)
     {
         kill(Messenger.s("Killed"));
     }
@@ -157,7 +174,7 @@ public class EntityPlayerMPFake extends ServerPlayer
         if (reason.getContents() instanceof TranslatableContents text && text.getKey().equals("multiplayer.disconnect.duplicate_login")) {
             this.connection.onDisconnect(new DisconnectionDetails(reason));
         } else {
-            this.server.tell(new TickTask(this.server.getTickCount(), () -> {
+            this.server.schedule(new TickTask(this.server.getTickCount(), () -> {
                 this.connection.onDisconnect(new DisconnectionDetails(reason));
             }));
         }
@@ -201,7 +218,6 @@ public class EntityPlayerMPFake extends ServerPlayer
         super.die(cause);
         setHealth(20);
         this.foodData = new FoodData();
-        giveExperienceLevels(-(experienceLevel + 1));
         kill(this.getCombatTracker().getDeathMessage());
     }
 
@@ -222,9 +238,9 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public Entity changeDimension(DimensionTransition serverLevel)
+    public ServerPlayer teleport(TeleportTransition serverLevel)
     {
-        super.changeDimension(serverLevel);
+        super.teleport(serverLevel);
         if (wonGame) {
             ServerboundClientCommandPacket p = new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN);
             connection.handleClientCommand(p);
@@ -236,33 +252,5 @@ public class EntityPlayerMPFake extends ServerPlayer
             connection.player.hasChangedDimension();
         }
         return connection.player;
-    }
-
-    @Override
-    public boolean hurt(DamageSource damageSource, float f) {
-        if (f > 0.0f && this.isDamageSourceBlocked(damageSource)) {
-            this.hurtCurrentlyUsedShield(f);
-            // equivalent of Player::blockUsingShield without wonky KB
-            if (damageSource.getDirectEntity() instanceof LivingEntity le && le.canDisableShield()) {
-                this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
-                this.disableShield();
-
-                String ign = this.getGameProfile().getName();
-                CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
-                ParseResults<CommandSourceStack> parseResults = server.getCommands().getDispatcher()
-                        .parse(String.format("function practicebot:shielddisable", ign), commandSource);
-                server.getCommands().performCommand(parseResults, "");
-            } else {
-                // shield block sound probably
-                this.playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 0.8F + this.level().random.nextFloat() * 0.4F);
-            }
-            // some stat tracking from LivingEntity::hurt
-            CriteriaTriggers.ENTITY_HURT_PLAYER.trigger((ServerPlayer)this, damageSource, f, 0, true);
-            if (f < 3.4028235E37F) {
-                ((ServerPlayer)this).awardStat(Stats.DAMAGE_BLOCKED_BY_SHIELD, Math.round(f * 10.0F));
-            }
-            return false;
-        }
-        return super.hurt(damageSource, f);
     }
 }
