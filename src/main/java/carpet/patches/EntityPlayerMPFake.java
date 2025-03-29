@@ -262,12 +262,12 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public boolean hurt(DamageSource source, float f) {
+    public boolean hurt(DamageSource source, float f, ItemStack stack) {
         if(f > 0.0f && this.isDamageSourceBlocked(source)){
             this.hurtCurrentlyUsedShield(f);
             if(source.getEntity() instanceof LivingEntity le && le.canDisableShield()){
                 this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
-                this.disableShield();
+                this.disableShield(stack);
 
                 String ign = this.getGameProfile().getName();
                 CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
