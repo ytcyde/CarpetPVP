@@ -32,10 +32,10 @@ dependencies {
 }
 
 processResources {
-	inputs.property "version", project.version+'+v'+new Date().format('yyMMdd')
+	inputs.property "version", 'v1.0'
 
 	filesMatching("fabric.mod.json") {
-		expand "version": project.mod_version+'+v'+new Date().format('yyMMdd')
+		expand "version": 'v1.0'
 	}
 }
 

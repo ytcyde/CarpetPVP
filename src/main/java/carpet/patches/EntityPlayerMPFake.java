@@ -2,6 +2,9 @@ package carpet.patches;
 
 import carpet.CarpetSettings;
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.ParseResults;
+import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.DisconnectionDetails;
@@ -20,9 +23,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.GameProfileCache;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.stats.Stats;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
@@ -37,7 +43,6 @@ import carpet.fakes.ServerPlayerInterface;
 import carpet.utils.Messenger;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("EntityConstructor")
@@ -78,7 +83,7 @@ public class EntityPlayerMPFake extends ServerPlayer
             EntityPlayerMPFake instance = new EntityPlayerMPFake(server, worldIn, current, ClientInformation.createDefault(), false);
             instance.fixStartingPosition = () -> instance.moveTo(pos.x, pos.y, pos.z, (float) yaw, (float) pitch);
             server.getPlayerList().placeNewPlayer(new FakeClientConnection(PacketFlow.SERVERBOUND), instance, new CommonListenerCookie(current, 0, instance.clientInformation(), false));
-            instance.teleportTo(worldIn, pos.x, pos.y, pos.z, Set.of(), (float) yaw, (float) pitch, true);
+            instance.teleportTo(worldIn, pos.x, pos.y, pos.z, (float) yaw, (float) pitch);
             instance.setHealth(20.0F);
             instance.unsetRemoved();
             instance.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.6F);
@@ -152,7 +157,7 @@ public class EntityPlayerMPFake extends ServerPlayer
         if (reason.getContents() instanceof TranslatableContents text && text.getKey().equals("multiplayer.disconnect.duplicate_login")) {
             this.connection.onDisconnect(new DisconnectionDetails(reason));
         } else {
-            this.server.schedule(new TickTask(this.server.getTickCount(), () -> {
+            this.server.tell(new TickTask(this.server.getTickCount(), () -> {
                 this.connection.onDisconnect(new DisconnectionDetails(reason));
             }));
         }
@@ -196,6 +201,7 @@ public class EntityPlayerMPFake extends ServerPlayer
         super.die(cause);
         setHealth(20);
         this.foodData = new FoodData();
+        giveExperienceLevels(-(experienceLevel + 1));
         kill(this.getCombatTracker().getDeathMessage());
     }
 
@@ -216,7 +222,7 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public Player changeDimension(DimensionTransition serverLevel)
+    public Entity changeDimension(DimensionTransition serverLevel)
     {
         super.changeDimension(serverLevel);
         if (wonGame) {
@@ -230,5 +236,33 @@ public class EntityPlayerMPFake extends ServerPlayer
             connection.player.hasChangedDimension();
         }
         return connection.player;
+    }
+
+    @Override
+    public boolean hurt(DamageSource damageSource, float f) {
+        if (f > 0.0f && this.isDamageSourceBlocked(damageSource)) {
+            this.hurtCurrentlyUsedShield(f);
+            // equivalent of Player::blockUsingShield without wonky KB
+            if (damageSource.getDirectEntity() instanceof LivingEntity le && le.canDisableShield()) {
+                this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
+                this.disableShield();
+
+                String ign = this.getGameProfile().getName();
+                CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
+                ParseResults<CommandSourceStack> parseResults = server.getCommands().getDispatcher()
+                        .parse(String.format("function practicebot:shielddisable", ign), commandSource);
+                server.getCommands().performCommand(parseResults, "");
+            } else {
+                // shield block sound probably
+                this.playSound(SoundEvents.SHIELD_BLOCK, 1.0F, 0.8F + this.level().random.nextFloat() * 0.4F);
+            }
+            // some stat tracking from LivingEntity::hurt
+            CriteriaTriggers.ENTITY_HURT_PLAYER.trigger((ServerPlayer)this, damageSource, f, 0, true);
+            if (f < 3.4028235E37F) {
+                ((ServerPlayer)this).awardStat(Stats.DAMAGE_BLOCKED_BY_SHIELD, Math.round(f * 10.0F));
+            }
+            return false;
+        }
+        return super.hurt(damageSource, f);
     }
 }

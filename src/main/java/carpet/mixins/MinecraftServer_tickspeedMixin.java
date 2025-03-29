@@ -36,34 +36,42 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantBlockableE
     }
 
 
-    @Inject(method = "autoSave", at = @At(
+    @Inject(method = "tickServer", at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/server/MinecraftServer;saveEverything(ZZZ)Z", // save
             shift = At.Shift.BEFORE
     ))
-    private void startAutosave(final CallbackInfo ci)
+    private void startAutosave(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
     {
         currentSection = CarpetProfiler.start_section(null, "Autosave", CarpetProfiler.TYPE.GENERAL);
     }
 
-    @Inject(method = "autoSave", at = @At(
+    @Inject(method = "tickServer", at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/server/MinecraftServer;saveEverything(ZZZ)Z",
             shift = At.Shift.AFTER
     ))
-    private void finishAutosave(final CallbackInfo ci)
+    private void finishAutosave(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
     {
         CarpetProfiler.end_current_section(currentSection);
     }
 
-    @Inject(method = "tickConnection", at = @At("HEAD"))
-    private void startNetwork(final CallbackInfo ci)
+    @Inject(method = "tickChildren", at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/server/MinecraftServer;getConnection()Lnet/minecraft/server/network/ServerConnectionListener;",
+            shift = At.Shift.BEFORE
+    ))
+    private void startNetwork(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
     {
         currentSection = CarpetProfiler.start_section(null, "Network", CarpetProfiler.TYPE.GENERAL);
     }
 
-    @Inject(method = "tickConnection", at = @At("RETURN"))
-    private void finishNetwork(final CallbackInfo ci)
+    @Inject(method = "tickChildren", at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/server/players/PlayerList;tick()V",
+            shift = At.Shift.AFTER
+    ))
+    private void finishNetwork(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
     {
         CarpetProfiler.end_current_section(currentSection);
     }
