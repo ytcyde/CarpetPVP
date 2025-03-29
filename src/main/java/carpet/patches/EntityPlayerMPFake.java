@@ -2,6 +2,9 @@ package carpet.patches;
 
 import carpet.CarpetSettings;
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.ParseResults;
+import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.DisconnectionDetails;
@@ -20,9 +23,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.GameProfileCache;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.stats.Stats;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
@@ -218,6 +224,7 @@ public class EntityPlayerMPFake extends ServerPlayer
         super.die(cause);
         setHealth(20);
         this.foodData = new FoodData();
+        giveExperienceLevels(-(experienceLevel + 1));
         kill(this.getCombatTracker().getDeathMessage());
     }
 
@@ -252,5 +259,31 @@ public class EntityPlayerMPFake extends ServerPlayer
             connection.player.hasChangedDimension();
         }
         return connection.player;
+    }
+
+    @Override
+    public boolean hurt(DamageSource source, float f) {
+        if(f > 0.0f && this.isDamageSourceBlocked(source)){
+            this.hurtCurrentlyUsedShield(f);
+            if(source.getEntity() instanceof LivingEntity le && le.canDisableShield()){
+                this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
+                this.disableShield();
+
+                String ign = this.getGameProfile().getName();
+                CommandSourceStack commandSource = server.createCommandSourceStack().withSuppressedOutput();
+                ParseResults<CommandSourceStack> parseResults
+                        = server.getCommands().getDispatcher().parse(String.format("function practicebot:shielddisable", ign), commandSource);
+                server.getCommands().performCommand(parseResults, "");
+            } else {
+                this.playSound(SoundEvents.SHIELD_BREAK, 1.0F, 0.8F
+                        + this.level().random.nextFloat() * 0.4F);
+            }
+            CriteriaTriggers.ENTITY_HURT_PLAYER.trigger((ServerPlayer)this, source, f, 0, true);
+            if(f < 3.4028235E37F){
+                ((ServerPlayer)this).awardStat(Stats.DAMAGE_BLOCKED_BY_SHIELD, Math.round(f * 10.0F));
+            }
+            return false;
+        }
+        return super.hurt(source, f);
     }
 }
