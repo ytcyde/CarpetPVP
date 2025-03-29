@@ -73,12 +73,6 @@ public class EntityPlayerActionPack
 
     public EntityPlayerActionPack start(ActionType type, Action action)
     {
-        if (action.isContinuous)
-        {
-            Action current = actions.get(type);
-            if (current != null) return this;
-        }
-
         Action previous = actions.remove(type);
         if (previous != null) type.stop(player, previous);
         if (action != null)
@@ -93,16 +87,16 @@ public class EntityPlayerActionPack
     {
         sneaking = doSneak;
         player.setShiftKeyDown(doSneak);
-//        if (sprinting && sneaking)
-//            setSprinting(false);
+        if (sprinting && sneaking)
+            setSprinting(false);
         return this;
     }
     public EntityPlayerActionPack setSprinting(boolean doSprint)
     {
         sprinting = doSprint;
         player.setSprinting(doSprint);
-//        if (sneaking && sprinting)
-//            setSneaking(false);
+        if (sneaking && sprinting)
+            setSneaking(false);
         return this;
     }
 
@@ -244,10 +238,7 @@ public class EntityPlayerActionPack
                 }
             }
         }
-
-        float vel = sneaking?0.30F:1.0F;
-        vel *= player.isUsingItem()?0.20F:1.0F;
-
+        float vel = sneaking?0.3F:1.0F;
         // The != 0.0F checks are needed given else real players can't control minecarts, however it works with fakes and else they don't stop immediately
         if (forward != 0.0F || player instanceof EntityPlayerMPFake) {
             player.zza = forward * vel;
@@ -259,13 +250,8 @@ public class EntityPlayerActionPack
 
     static HitResult getTarget(ServerPlayer player)
     {
-        double blockReach = player.gameMode.isCreative() ? 5 : 4.5f;
-        double entityReach = player.gameMode.isCreative() ? 5 : 3f;
-
-        HitResult hit = Tracer.rayTrace(player, 1, blockReach, false);
-
-        if (hit.getType() == HitResult.Type.BLOCK) return hit;
-        return Tracer.rayTrace(player, 1, entityReach, false);
+        double reach = player.gameMode.isCreative() ? 5 : 4.5f;
+        return Tracer.rayTrace(player, 1, reach, false);
     }
 
     private void dropItemFromSlot(int slot, boolean dropAll)
@@ -331,9 +317,9 @@ public class EntityPlayerActionPack
                             if (pos.getY() < player.level().getMaxBuildHeight() - (side == Direction.UP ? 1 : 0) && world.mayInteract(player, pos))
                             {
                                 InteractionResult result = player.gameMode.useItemOn(player, world, player.getItemInHand(hand), hand, blockHit);
-                                player.swing(hand);
                                 if (result.consumesAction())
                                 {
+                                    if (result.shouldSwing()) player.swing(hand);
                                     ap.itemUseCooldown = 3;
                                     return true;
                                 }
@@ -462,9 +448,6 @@ public class EntityPlayerActionPack
                         return blockBroken;
                     }
                 }
-                if (!action.isContinuous) player.swing(InteractionHand.MAIN_HAND);
-                player.resetAttackStrengthTicker();
-                player.resetLastActionTime();
                 return false;
             }
 
