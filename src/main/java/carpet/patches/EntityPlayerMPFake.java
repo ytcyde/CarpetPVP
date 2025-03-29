@@ -262,9 +262,10 @@ public class EntityPlayerMPFake extends ServerPlayer
     }
 
     @Override
-    public boolean hurtServer(DamageSource source, float f, ItemStack stack) {
+    public boolean hurtServer(ServerLevel serverLevel, DamageSource source, float f) {
         if(f > 0.0f && this.isDamageSourceBlocked(source)){
             this.hurtCurrentlyUsedShield(f);
+            ItemStack stack = this.getUseItem();
             if(source.getEntity() instanceof LivingEntity le && le.canDisableShield()){
                 this.playSound(SoundEvents.SHIELD_BREAK, 0.8F, 0.8F + this.level().random.nextFloat() * 0.4F);
                 this.disableShield(stack);
@@ -284,6 +285,6 @@ public class EntityPlayerMPFake extends ServerPlayer
             }
             return false;
         }
-        return super.hurt(source, f);
+        return super.hurtServer(serverLevel, source, f);
     }
 }
