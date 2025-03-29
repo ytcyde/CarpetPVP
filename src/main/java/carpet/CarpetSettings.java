@@ -53,7 +53,7 @@ public class CarpetSettings
             ((SemanticVersion)FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion()).getVersionComponent(1),
             ((SemanticVersion)FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion()).getVersionComponent(2)
     };
-    public static final Logger LOG = LoggerFactory.getLogger("carpet pvp");
+    public static final Logger LOG = LoggerFactory.getLogger("carpet");
     public static final ThreadLocal<Boolean> skipGenerationChecks = ThreadLocal.withInitial(() -> false);
     public static final ThreadLocal<Boolean> impendingFillSkipUpdates = ThreadLocal.withInitial(() -> false);
     public static int runPermissionLevel = 2;
@@ -908,7 +908,7 @@ public class CarpetSettings
         @Override
         public String validate(CommandSourceStack source, CarpetRule<String> currentRule, String newValue, String string) {
             if (source == null) return newValue; // closing or sync
-            Optional<Block> ignoredBlock = source.registryAccess().registryOrThrow(Registries.BLOCK).getOptional(ResourceLocation.tryParse(newValue));
+            Optional<Block> ignoredBlock = source.registryAccess().lookupOrThrow(Registries.BLOCK).getOptional(ResourceLocation.tryParse(newValue));
             if (!ignoredBlock.isPresent()) {
                 Messenger.m(source, "r Unknown block '" + newValue + "'.");
                 return null;
