@@ -67,6 +67,7 @@ public class PlayerCommand
                                 .then(argument("slot", IntegerArgumentType.integer(1, 9))
                                         .executes(c -> manipulate(c, ap -> ap.setSlot(IntegerArgumentType.getInteger(c, "slot"))))))
                         .then(literal("kill").executes(PlayerCommand::kill))
+                        .then(literal("disconnect").executes(PlayerCommand::disconnect))
                         .then(literal("shadow"). executes(PlayerCommand::shadow))
                         .then(literal("mount").executes(manipulation(ap -> ap.mount(true)))
                                 .then(literal("anything").executes(manipulation(ap -> ap.mount(false)))))
@@ -137,7 +138,7 @@ public class PlayerCommand
 
     private static Collection<String> getPlayerSuggestions(CommandSourceStack source)
     {
-        Set<String> players = new LinkedHashSet<>(List.of("Steve", "Alex"));
+        Set<String> players = new LinkedHashSet<>(List.of("Steve", "Alex", "TheobaldTheBot"));
         players.addAll(source.getOnlinePlayerNames());
         return players;
     }
@@ -231,6 +232,18 @@ public class PlayerCommand
         ServerPlayer player = getPlayer(context);
         player.kill(player.serverLevel());
         return 1;
+    }
+
+    private static int disconnect(CommandContext<CommandSourceStack> context)
+    {
+        Player player = getPlayer(context);
+        if (player instanceof EntityPlayerMPFake)
+        {
+            ((EntityPlayerMPFake) player).fakePlayerDisconnect(Messenger.s(""));
+            return 1;
+        }
+        Messenger.m(context.getSource(), "r Cannot disconnect real players");
+        return 0;
     }
 
     @FunctionalInterface
