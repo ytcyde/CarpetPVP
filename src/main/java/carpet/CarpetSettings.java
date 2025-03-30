@@ -53,7 +53,7 @@ public class CarpetSettings
             ((SemanticVersion)FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion()).getVersionComponent(1),
             ((SemanticVersion)FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata().getVersion()).getVersionComponent(2)
     };
-    public static final Logger LOG = LoggerFactory.getLogger("carpet");
+    public static final Logger LOG = LoggerFactory.getLogger("carpet PvP");
     public static final ThreadLocal<Boolean> skipGenerationChecks = ThreadLocal.withInitial(() -> false);
     public static final ThreadLocal<Boolean> impendingFillSkipUpdates = ThreadLocal.withInitial(() -> false);
     public static int runPermissionLevel = 2;

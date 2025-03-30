@@ -3,15 +3,15 @@
   "id": "carpet",
   "version": "${version}",
 
-  "name": "Carpet Mod",
-  "description": "Carpet made out of fabric",
+  "name": "Carpet PVP",
+  "description": "Carpet with PVP tweaks",
   "authors": [
-    "gnembon, ..."
+    "gnembon, TheobaldTheBird, Cyde"
   ],
   "contact": {
-    "homepage": "https://github.com/gnembon/fabric-carpet",
-    "issues": "https://github.com/gnembon/fabric-carpet/issues",
-    "sources": "https://github.com/gnembon/fabric-carpet"
+    "homepage": "https://github.com/TheobaldTheBird/CarpetPVP",
+    "issues": "https://github.com/TheobaldTheBird/CarpetPVP/issues",
+    "sources": "https://github.com/TheobaldTheBird/CarpetPVP"
   },
 
   "license": "MIT",
